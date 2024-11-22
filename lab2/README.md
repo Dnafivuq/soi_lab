@@ -11,6 +11,7 @@ W pliku `/usr/src/kernel/proc.h` w strukturze proc zostały dodane 2 pola - `p_a
 Obydwa syscall'e zostały zdefiniowane w pliku `/usr/src/mm/main.c` na końcu pliku:
  - `do_getprio()`: zwraca piorytet procesu o podanym id,
  - `do_setprio()`: ustawia piorytet procesu o podanym id, na zadany piorytet.
+
 Natomiast taskcall'e zdefiniowane są w pliku `/usr/src/kernel/system.c`:
  - `do_getprio()`,
  - `do_setprio()`,
