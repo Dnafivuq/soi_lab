@@ -15,6 +15,7 @@ Obydwa syscall'e zostały zdefiniowane w pliku `/usr/src/mm/main.c` na końcu pl
 Natomiast taskcall'e zdefiniowane są w pliku `/usr/src/kernel/system.c`:
  - `do_getprio()`,
  - `do_setprio()`,
+
 w praktyce syscalle i taskcalle zwracają to samo z taką różnicą, że to taskcalle posiadają faktyczną logikę zmiany/odczytania piorytetu, wynika to z oczywistego faktu, że jądro pozwala na edytowanie tablicy procesów z poziomu kernela, nie MM.
 
 # Użycie
