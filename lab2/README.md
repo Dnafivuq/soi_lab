@@ -1,8 +1,9 @@
 ### lab 2
 
 ## Rozwiązanie
-Plik 'lab2.zip' zawiera obraz systemu minix z zaimplementowanymi zadaniem szeregowania piorytetowego.
-Szeregowanie polega na przydzielaniu czasu procesowi według równania: `kwant czasu * piorytet`. Dodatkowo istnieją odpowiednie syscall'e pozwalające na odczyt i modyfikacje piorytetu danego procesu.
+Plik 'lab2.zip' zawiera obraz systemu minix z zaimplementowanymi zadaniem szeregowania piorytetowego. Szeregowanie polega na przydzielaniu czasu procesowi według równania: `kwant czasu * piorytet`. Domyślnie piorytet nowych procesów wynosi na przemian 10, 50. 
+
+Dodatkowo istnieją odpowiednie syscall'e pozwalające na odczyt i modyfikacje piorytetu danego procesu.
 
 # Implementacja szeregowania
 W pliku `/usr/src/kernel/proc.h` w strukturze proc zostały dodane 2 pola - `p_age` i `p_prio`, oraz zostały wprowadzone zmiany w `usr/src/kernel/proc.c` w funkcji `sched()`, tak aby uwzględniać nowy sposób szeregowania.
