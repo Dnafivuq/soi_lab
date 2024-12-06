@@ -12,6 +12,7 @@ Każdy bufor tworzony jest za pomocą metody `buffer_constr()`, która allokuje 
 Producenci i konsumenci są synchronizowani za pomocą semaforów znajdujących się w każdym buforze.
  - producenci mogą dodawać swoje przedmioty, tylko i wyłącznie kiedy kolejka jest niepełna,
  - konsumenci mogą zabierać przedmioty z kolejki, tylko i wyłącznie jeśli jest niepusta.
+
 Za pomocą semafora `mutex` zapobiegamy wyścigom związanym z dostępem do danych znajdujących się w buforze (tylko jeden obiekt może jednocześnie modyfikować zawartość kolejki). Semafory `full` i `empty` zapewniają, że producent, bądź też konsument nie zablokuje kolejki jeśli warunek dodawania, zabierania nie zostanie spełniony. 
 
 
