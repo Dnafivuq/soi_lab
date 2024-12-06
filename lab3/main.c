@@ -24,11 +24,15 @@ void* shmalloc(size_t size) {
 //<======================================================================>
 //      definition of fifoqueue, buffer, consumer and producer
 //<======================================================================>
+typedef struct{
+  char c;
+  int i;
+} item_t;
 
 typedef struct{
   int max_size;
   int current_size;
-  char* content;
+  item_t* content;
 } fifoqueue_t;
 
 typedef struct{
@@ -36,19 +40,21 @@ typedef struct{
   sem_t empty;
   sem_t full;
   char name;
-  fifoqueue_t fifoqueue;
+  fifoqueue_t queue;
 } buffer_t;
 
 typedef struct{
-  char name;
+  item_t* produced_item;
   int n_buffers;
   buffer_t** wt_buffers;
+  char name;
 } producer_t;
 
 typedef struct{
-  char name;
+  item_t* received_item;
   int n_buffers;
   buffer_t** rf_buffers;
+  char name;
 } consumer_t;
 //<======================================================================>
 
@@ -58,21 +64,21 @@ typedef struct{
 //               Highly inefficient fifo queue implementation
 //<======================================================================>
 
-char pop(fifoqueue_t* queue) {
+item_t pop(fifoqueue_t* queue) {
   if (queue->current_size < 1)
-    __THROW "IndexError, pop on empty queue";
+    __THROW;
 
-  char element = queue->content[0];
+  item_t element = queue->content[0];
   queue->current_size -= 1;
   //shift content to "front" of the queue
   if (queue->current_size > 0)
-    memcpy(queue->content, queue->content + 1, sizeof(char)*queue->current_size);
+    memcpy(queue->content, queue->content + 1, sizeof(item_t)*queue->current_size);
   return element;
 }
 
-void insert(fifoqueue_t* queue, char value){
+void insert(fifoqueue_t* queue, item_t value){
   if (queue->current_size == queue->max_size)
-    __THROW "IndexError, insert on full queue";
+    __THROW;
   queue->content[queue->current_size] = value;
   queue->current_size+=1;
 }
@@ -85,12 +91,12 @@ void insert(fifoqueue_t* queue, char value){
 //<======================================================================>
 void down(sem_t* sem){
   if (sem_wait(sem) !=0)
-    __THROW "sem_wait: failed";
+    __THROW;
 }
 
 void up(sem_t* sem){
   if (sem_post(sem) !=0)
-    __THROW "sem_post: failed";
+    __THROW;
 }
 //<======================================================================>
 
@@ -101,20 +107,36 @@ void up(sem_t* sem){
 //<======================================================================>
 
 void produce_item(producer_t* producer){
-  printf("\t-producer: %c, produced item\n", producer->name);
+  if (producer->produced_item != NULL){
+    __THROW;
+  }
+  producer->produced_item->c=producer->name;
+  producer->produced_item->i=rand();
+  printf("\t- producer: %c, produced item %d\n", producer->produced_item->c, producer->produced_item->i);
 }
 
-void enter_item(buffer_t* buffer, char producer_name){
-  insert(&(buffer->fifoqueue), producer_name);
-  printf("=>buffer: %c just got item from producer: %c\n", buffer->name, producer_name);
+void enter_item(buffer_t* buffer, item_t* producer_item){
+  if (producer_item == NULL){
+    __THROW;
+  }
+  insert(&(buffer->queue), *producer_item);
+  producer_item = NULL;
+  item_t* buffer_item = &(buffer->queue.content[buffer->queue.current_size-1]);
+  printf("=> buffer: %c just got item %d from producer: %c\n", buffer->name, buffer_item->i, buffer_item->c);
 }
 
 void consume_item(consumer_t* consumer){
-  printf("\t-consumer: %c, consumed item\n", consumer->name);
+  if (consumer->received_item == NULL){
+    __THROW;
+  }
+  printf("\t- consumer: %c, consumed item %d from producer %c\n", consumer->name, consumer->received_item->i, consumer->received_item->c);
+  consumer->received_item = NULL;
 }
 
-void remove_item(buffer_t* buffer, char consumer_name){
-  printf("=>buffer: %c just got item: %c removed by consumer: %c\n", buffer->name, pop(&(buffer->fifoqueue)) ,consumer_name);
+item_t remove_item(buffer_t* buffer, char consumer_name){
+  item_t poped_item = pop(&(buffer->queue));
+  printf("  => buffer: %c just got item: %d from producer %c removed by consumer: %c\n", buffer->name, poped_item.i, poped_item.c , consumer_name);
+  return poped_item;
 }
 //<======================================================================>
 
@@ -127,39 +149,37 @@ void remove_item(buffer_t* buffer, char consumer_name){
 //allocates memory for itself and its inner fifoqueue using shmalloc to avoid further copying from local to shared memory 
 buffer_t* buffer_constr(int buffer_size, int share, char name){
   buffer_t* instance = shmalloc(sizeof(buffer_t));
-  char* queue_content = shmalloc(sizeof(char)*buffer_size);
+  item_t* queue_content = shmalloc(sizeof(item_t)*buffer_size);
 
   sem_init(&(instance->mutex), share, 1);
   sem_init(&(instance->empty), share, buffer_size);
   sem_init(&(instance->full), share, 0);
   instance->name = name;
-  instance->fifoqueue.current_size = 0;
-  instance->fifoqueue.max_size = buffer_size;
-  instance->fifoqueue.content = queue_content;
+  instance->queue.current_size = 0;
+  instance->queue.max_size = buffer_size;
+  instance->queue.content = queue_content;
   return instance;
 }
 
 producer_t* producer_const(char name, int n_buffers, buffer_t* wt_buffers[]){
   producer_t* instance = malloc(sizeof(producer_t));
-  //allocate memory for array of pointers that points to buffers
-  buffer_t** buffers = malloc(sizeof(buffer_t*)*n_buffers);
-  buffers = wt_buffers;
+  item_t* item = malloc(sizeof(item_t));
 
   instance->n_buffers = n_buffers;
   instance->name = name;
-  instance->wt_buffers = buffers;
-
+  instance->wt_buffers = wt_buffers;
+  instance->produced_item = item;
   return instance; 
 }
 
 consumer_t* consumer_const(char name, int n_buffers, buffer_t* rf_buffers[]){
   consumer_t* instance = malloc(sizeof(consumer_t));
-  buffer_t** buffers = malloc(sizeof(buffer_t*)*n_buffers);
-  buffers = rf_buffers;
+  item_t* item = malloc(sizeof(item_t));
 
   instance->n_buffers = n_buffers;
   instance->name = name;
-  instance->rf_buffers = buffers;
+  instance->rf_buffers = rf_buffers;
+  instance->received_item = item;
 
   return instance; 
 }
@@ -168,8 +188,8 @@ consumer_t* consumer_const(char name, int n_buffers, buffer_t* rf_buffers[]){
 //<======================================================================>
 
 //<======================================================================>
-// implementation of producer run and consumer run
-// main methods of child processes
+// implementation of producer run and consumer run -
+// - main methods of child processes
 //<======================================================================>
 
 void producer_run(producer_t* producer){
@@ -178,7 +198,7 @@ void producer_run(producer_t* producer){
       produce_item(producer);
       down(&(producer->wt_buffers[i]->empty));
       down(&(producer->wt_buffers[i]->mutex));
-      enter_item(producer->wt_buffers[i], producer->name);
+      enter_item(producer->wt_buffers[i], producer->produced_item);
       up(&(producer->wt_buffers[i]->mutex));
       up(&(producer->wt_buffers[i]->full));
 
@@ -187,7 +207,7 @@ void producer_run(producer_t* producer){
         exit(0);
       
       //sleep to avoid messaging spam
-      sleep(1);
+      // sleep(1);
     }
 }
 
@@ -196,7 +216,7 @@ void consumer_run(consumer_t* consumer){
     for(int i = 0; i < consumer->n_buffers; i++){
       down(&(consumer->rf_buffers[i]->full));
       down(&(consumer->rf_buffers[i]->mutex));
-      remove_item(consumer->rf_buffers[i], consumer->name);
+      *(consumer->received_item) = remove_item(consumer->rf_buffers[i], consumer->name);
       up(&(consumer->rf_buffers[i]->mutex));
       up(&(consumer->rf_buffers[i]->empty));
       //consume item commented to lower amount of messages spam
@@ -207,20 +227,23 @@ void consumer_run(consumer_t* consumer){
         exit(0);
 
       // sleep to avoid messaging spam
-      sleep(1);
+      // sleep(1);
     }
 }
 //<======================================================================>
 
 int main() {
+  // seed rand
+  // srand(time(NULL));
+
   // define child processes for each consumer/producer
   pid_t p1, p2, p3;
   pid_t c1, c2, c3, c4;
 
   // define buffers
-  buffer_t* buffer1 = buffer_constr(1, 1, '1');
-  buffer_t* buffer2 = buffer_constr(2, 1, '2');
-  buffer_t* buffer3 = buffer_constr(3, 1, '3');
+  buffer_t* buffer1 = buffer_constr(5, 1, '1');
+  buffer_t* buffer2 = buffer_constr(1, 1, '2');
+  buffer_t* buffer3 = buffer_constr(2, 1, '3');
   buffer_t* buffer4 = buffer_constr(4, 1, '4');
   
   buffer_t* buffers[] = {buffer1, buffer2, buffer3, buffer4};
