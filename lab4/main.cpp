@@ -81,8 +81,8 @@ int main(){
     Consumer c4("cD");
     c4.addBuffer(&b4);
 
-    std::thread producer2_t(&Producer::run, &p2);
     std::thread producer1_t(&Producer::run, &p1);
+    std::thread producer2_t(&Producer::run, &p2);
     std::thread producer3_t(&Producer::run, &p3);
 
     std::thread consumer1_t(&Consumer::run, &c1);
@@ -116,6 +116,7 @@ Buffer::Buffer(const std::string &name, size_t max_size) :
 
 void Buffer::insert(Item &item)
 {
+    enter();
     if (_content.size() == _max_size)
         wait(_full);
     _content.push(std::move(item));
@@ -124,19 +125,22 @@ void Buffer::insert(Item &item)
     console.v();
     if (_content.size() == 1)
         signal(_empty);
+    leave();
 }
 
 Item Buffer::remove()
 {
+    enter();
     if (_content.empty())
         wait(_empty);
     Item i = _content.front();
     _content.pop();
     console.p();
-    std::cout<<"Buffer: "<<std::quoted(_name)<<" removed item: "<<i.produced_number<<" from producer: "<<std::quoted(i.producer_name)<<std::endl;
+    std::cout<<"Buffer: "<<std::quoted(_name)<<" got item removed: "<<i.produced_number<<" from producer: "<<std::quoted(i.producer_name)<<std::endl;
     console.v();
     if (_content.size() == _max_size - 1)
         signal(_full);
+    leave();
     return i;
 }
 
@@ -146,6 +150,7 @@ void Producer::run()
         for (auto * buffer : _buffers){
             produce_item();
             buffer->insert(_item);
+            // sleep(1);
         }
     }
 
@@ -172,7 +177,7 @@ void Consumer::run()
         for (auto * buffer : _buffers){
             _item = buffer->remove();
             consume_item();
-            sleep(1);
+            // sleep(1);
         }
     }
 }
